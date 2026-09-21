@@ -67,6 +67,21 @@ install_tier0() {
   kc -n kubeflow patch svc ml-pipeline-ui --type merge -p \
     '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":3000,"nodePort":30080,"name":"http"}]}}'
   ok "patched ml-pipeline-ui to NodePort 30080 (mapped to host 8080 by kind)"
+
+  # proxy-agent is Google's "inverting proxy" agent. It exists to expose the
+  # KFP UI through a Google-managed URL and it talks to the GCP metadata
+  # server, so on a local cluster it is useless - it would crash even if it
+  # could start. It cannot start: the kubeflow namespace enforces
+  # PodSecurity "baseline", which forbids the hostNetwork:true it asks for,
+  # so its ReplicaSet emits FailedCreate forever.
+  #
+  # We scale it to zero rather than relaxing the namespace's PodSecurity
+  # label. Admission control is doing exactly its job here, and a lab whose
+  # `make status` is permanently red just teaches you to ignore warnings.
+  if kc -n kubeflow get deploy proxy-agent >/dev/null 2>&1; then
+    kc -n kubeflow scale deploy/proxy-agent --replicas=0 >/dev/null 2>&1 \
+      && ok "scaled proxy-agent to 0 (GCP-only; PodSecurity blocks it here)"
+  fi
 }
 
 install_distribution() {

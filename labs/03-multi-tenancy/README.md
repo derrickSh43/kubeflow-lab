@@ -68,6 +68,10 @@ kubectl -n team-b run probe --rm -it --image=curlimages/curl --restart=Never -- 
   http://ml-pipeline-ui.kubeflow-user-example-com/
 
 # c) object storage - the interesting one
+# the secret name depends on which object store your build ships -
+# find it first rather than trusting the name below
+kubectl -n team-b get secret | grep -Ei 'artifact|minio|seaweed'
+
 kubectl -n team-b get secret mlpipeline-minio-artifact -o jsonpath='{.data.accesskey}' | base64 -d
 kubectl -n kubeflow-user-example-com get secret mlpipeline-minio-artifact -o jsonpath='{.data.accesskey}' | base64 -d
 ```
@@ -75,7 +79,7 @@ kubectl -n kubeflow-user-example-com get secret mlpipeline-minio-artifact -o jso
 4. Did (a) fail? Good. Did (b) fail? Record the exact failure mode - was it
    RBAC, a NetworkPolicy, an Istio AuthorizationPolicy, or nothing at all?
 5. **(c) is the one to think hard about.** Compare the two secrets. If both
-   tenants hold the same MinIO credentials, what exactly stops team-b from
+   tenants hold the same object-store credentials, what exactly stops team-b from
    reading the other tenant's pipeline artifacts? Test your answer - do not
    assume it.
 

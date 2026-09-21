@@ -64,7 +64,7 @@ which is kinder than finding out forty minutes in.
 | Istio ingress + VirtualServices | L7 routing, mTLS, sidecar injection |
 | Dex + oauth2-proxy | OIDC flows, federated identity |
 | Profiles controller | namespace-as-tenant, RBAC, ResourceQuota |
-| MinIO + PVCs | S3 API semantics, StorageClasses, CSI |
+| Object store (SeaweedFS/MinIO) + PVCs | S3 API semantics, StorageClasses, CSI |
 | Argo Workflows (under KFP) | CRDs, operators, reconcile loops |
 | ml-pipeline MySQL + MLMD | stateful workloads, backup, migrations |
 | KServe + Knative | scale-to-zero, revisions, canary |
@@ -81,7 +81,7 @@ that checks cluster **state** rather than that you ran a command.
 | 02 | Find out what is actually running your pipeline (it is Argo) | 0+ |
 | 03 | Prove the tenancy boundary — then try to break it | 1+ |
 | 04 | Squeeze the quota until pipelines go `Pending` | 0+ |
-| 05 | Swap MinIO for real object storage | 0+ |
+| 05 | Swap the bundled object store for real S3 | 0+ |
 | 06 | Replace Dex's static user with a real IdP | 1+ |
 | 07 | Serve a model and let it scale to zero | 2 |
 | 08 | Upgrade it and find out what breaks | 1+ |

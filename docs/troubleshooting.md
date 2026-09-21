@@ -32,6 +32,55 @@ to `.wslconfig`, `wsl --shutdown`, and confirm with
 
 `make doctor` checks this now and blocks on v1.
 
+## Warnings that are fine
+
+`make status` shows warnings during and shortly after an install. These
+four are expected. Anything else, read carefully.
+
+**`proxy-agent ... violates PodSecurity "baseline:latest": host namespaces
+(hostNetwork=true)`**
+
+Permanent, and harmless. `proxy-agent` is Google's inverting-proxy agent —
+it exposes the KFP UI through a Google-managed URL and depends on the GCP
+metadata server. Useless on a local cluster; it would crash even if it
+could start. It cannot start, because the `kubeflow` namespace enforces
+PodSecurity `baseline` and the pod wants `hostNetwork: true`.
+
+Admission control is doing its job. `up.sh` scales the deployment to zero
+so it stops shouting. If you see it, you are on a cluster created before
+that was added:
+
+```bash
+kubectl -n kubeflow scale deploy/proxy-agent --replicas=0
+```
+
+**`MountVolume.SetUp failed for volume "webhook-tls-certs": secret
+"webhook-server-tls" not found`**
+
+A startup race. `cache-deployer` generates that secret as a Job, and
+`cache-server` is scheduled before it finishes. Resolves itself in a few
+minutes. If it is still there after ten:
+
+```bash
+kubectl -n kubeflow get jobs
+kubectl -n kubeflow logs job/cache-deployer-deployment
+```
+
+**`coredns ... Readiness probe failed: connection refused`**, in the first
+couple of minutes — CoreDNS answering probes before it is listening.
+Transient.
+
+**`kube-apiserver ... Liveness probe failed: statuscode: 500`**, during
+the install — the API server is busy admitting hundreds of objects at
+once and briefly fails its own probe. Transient *unless* it repeats after
+things settle, or the pod's restart count climbs:
+
+```bash
+kubectl -n kube-system get pod -l component=kube-apiserver
+```
+
+A rising `RESTARTS` column there means real pressure — usually memory.
+
 ## The install never converges
 
 `up.sh` retries 25 times. If it exhausts that:

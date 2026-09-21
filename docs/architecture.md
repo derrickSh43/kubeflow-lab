@@ -61,7 +61,7 @@ silently drop new components on a version bump; a filter picks them up.
 |---|---|---|---|
 | Pipelines | standalone | distribution | distribution |
 | Argo Workflows | yes | yes | yes |
-| MinIO + MySQL | yes | yes | yes |
+| Object store + MySQL | yes | yes | yes |
 | Istio service mesh | - | yes | yes |
 | Dex + oauth2-proxy | - | yes | yes |
 | Profiles / multi-tenancy | - | yes | yes |
