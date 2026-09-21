@@ -1,7 +1,8 @@
 # Windows + WSL2 setup
 
-Most of the pain in this lab on Windows comes from two things that fail
-*silently*. Do both before your first `make up`.
+Most of the pain in this lab on Windows comes from three things that
+fail *silently*, or fail loudly for the wrong reason. Do all three before
+your first `make up`.
 
 ## 1. Give WSL2 enough memory
 
@@ -30,7 +31,75 @@ docker info --format '{{.MemTotal}}' | awk '{print $1/1024/1024/1024 " GB"}'
 `make doctor` checks this for you and will refuse to start a tier your
 machine cannot hold.
 
-## 2. Raise the inotify limits
+## 2. Enable cgroup v2
+
+**Kubernetes 1.36 does not run on cgroup v1**, and WSL2 before v2.5.1
+defaults to v1.
+
+The failure is spectacular and completely misleading. `kind create
+cluster` generates every certificate, writes all the static pod
+manifests, starts the kubelet — and then the API server never comes up.
+kubeadm retries for sixty seconds and dies with:
+
+```
+error execution phase wait-control-plane: cannot obtain client without
+bootstrap: ... client rate limiter Wait returned an error: context
+deadline exceeded
+```
+
+Several hundred lines of output, and the only real clue is a single line
+printed at the very top, long since scrolled off your screen:
+
+```
+cgroup v1 is deprecated in Kubernetes and will not be supported in a
+future kind release, please upgrade to cgroup v2
+```
+
+### Check what you have
+
+```powershell
+wsl --version
+```
+
+**2.5.1 or newer** — cgroup v2 is already the default and you can skip to
+step 3. **Older, or the command fails** — update first, which may fix it
+outright:
+
+```powershell
+wsl --update
+```
+
+### Set it explicitly
+
+Whether or not the update helped, put this in `.wslconfig` (same file as
+step 1). It is harmless on versions that are already v2:
+
+```ini
+[wsl2]
+kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1
+```
+
+Then from PowerShell:
+
+```powershell
+wsl --shutdown
+```
+
+Wait ten seconds and let Docker Desktop restart.
+
+### Verify
+
+```bash
+docker info --format '{{.CgroupVersion}}'
+```
+
+You want `2`. If it still says `1`, Docker Desktop did not pick up the
+restart — quit it fully from the system tray and reopen it.
+
+`make doctor` now checks this and refuses to continue on v1, so you
+should never meet that wall of kubeadm output again.
+
+## 3. Raise the inotify limits
 
 Kubeflow runs a lot of controllers, and every controller watches files.
 WSL2's defaults are low enough to break them - and the failure mode is
@@ -55,7 +124,7 @@ cat /proc/sys/fs/inotify/max_user_instances   # want >= 512
 cat /proc/sys/fs/inotify/max_user_watches     # want >= 524288
 ```
 
-## 3. Keep the repo on the Linux filesystem
+## 4. Keep the repo on the Linux filesystem
 
 Working out of `/mnt/c/...` or `/mnt/d/...` goes through the 9p filesystem
 bridge and is dramatically slower - enough to make `kustomize build` take
@@ -70,7 +139,7 @@ cd kubeflow-lab
 If you keep the canonical copy on `D:`, clone *from* it into WSL and push
 back; do not build from the mount.
 
-## 4. Docker Desktop settings
+## 5. Docker Desktop settings
 
 - **Use the WSL2 based engine** - on, not Hyper-V.
 - **Resource Saver** - turn it off. It pauses the engine when idle, which

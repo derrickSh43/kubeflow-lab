@@ -2,6 +2,36 @@
 
 Run `make doctor` first. It catches most of this before you waste an hour.
 
+## `make up` dies at "Starting control-plane"
+
+Symptom: kind creates the node container, generates certificates, writes
+the static pod manifests — then hundreds of lines of
+
+```
+round_trippers.go:632] "Response" verb="POST" url="https://.../clusterrolebindings?timeout=10s" status="" milliseconds=0
+```
+
+ending in `context deadline exceeded`.
+
+Cause: **cgroup v1**. Kubernetes 1.36 does not run on it. The API server
+never starts, so every request kubeadm makes returns an empty status until
+it gives up.
+
+The real message is the *first* line of the output, hundreds of lines
+earlier:
+
+```
+cgroup v1 is deprecated in Kubernetes and will not be supported in a
+future kind release, please upgrade to cgroup v2
+```
+
+Fix: [wsl2-setup.md §2](wsl2-setup.md). Short version — add
+`kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1`
+to `.wslconfig`, `wsl --shutdown`, and confirm with
+`docker info --format '{{.CgroupVersion}}'`.
+
+`make doctor` checks this now and blocks on v1.
+
 ## The install never converges
 
 `up.sh` retries 25 times. If it exhausts that:

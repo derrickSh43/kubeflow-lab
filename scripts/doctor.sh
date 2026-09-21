@@ -38,6 +38,26 @@ else
     ok "Docker memory: ${MEM_GB}GB (tier $TIER wants ~${NEED_RAM}GB)"
   fi
 
+  # cgroup v2. This is the one that ruins your afternoon.
+  #
+  # Kubernetes 1.36 does not run on cgroup v1. kind gets all the way
+  # through certificate generation and writing the static pod manifests,
+  # then the API server never becomes reachable and kubeadm dies after 60
+  # seconds of retries with "context deadline exceeded" - hundreds of
+  # lines of output whose actual cause is a single deprecation warning
+  # printed at the very top, long since scrolled away.
+  #
+  # WSL2 before v2.5.1 defaults to cgroup v1. Fix is in docs/wsl2-setup.md.
+  CGV=$(docker info --format '{{.CgroupVersion}}' 2>/dev/null || echo "")
+  if [[ -z "$CGV" ]]; then
+    CGV=$(stat -fc %T /sys/fs/cgroup 2>/dev/null | grep -q cgroup2fs && echo 2 || echo "?")
+  fi
+  case "$CGV" in
+    2) ok "cgroup v2" ;;
+    1) bad "cgroup v1 - kind WILL fail at 'Starting control-plane'. See docs/wsl2-setup.md" ;;
+    *) soft "could not determine cgroup version (want v2)" ;;
+  esac
+
   CPUS=$(docker info --format '{{.NCPU}}' 2>/dev/null || echo 0)
   NEED_CPU=$([[ "$TIER" == "0" ]] && echo 2 || echo 6)
   if (( CPUS < NEED_CPU )); then
@@ -64,11 +84,27 @@ fi
 step "Platform"
 if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
   ok "running under WSL2"
-  WSLCFG="/mnt/c/Users/${WSL_USER:-$USER}/.wslconfig"
-  if [[ -f "$WSLCFG" ]]; then
+
+  # .wslconfig lives under the WINDOWS user profile, whose name is usually
+  # NOT your Linux username. Looking under $USER finds nothing and reports
+  # a confident false negative while the file sits there working fine.
+  # Ask Windows who it is, and fall back to a glob.
+  WSLCFG=""
+  WINUSER=$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
+  [[ -n "$WINUSER" && -f "/mnt/c/Users/$WINUSER/.wslconfig" ]] \
+    && WSLCFG="/mnt/c/Users/$WINUSER/.wslconfig"
+  if [[ -z "$WSLCFG" ]]; then
+    for c in /mnt/c/Users/*/.wslconfig; do
+      [[ -f "$c" ]] && { WSLCFG="$c"; break; }
+    done
+  fi
+
+  if [[ -n "$WSLCFG" ]]; then
     ok ".wslconfig found at $WSLCFG"
-    grep -qiE '^\s*memory\s*=' "$WSLCFG" \
-      || soft ".wslconfig has no [wsl2] memory= line - WSL will take a default share of RAM"
+    grep -qiE '^[[:space:]]*memory[[:space:]]*=' "$WSLCFG" \
+      || soft ".wslconfig has no [wsl2] memory= line - WSL takes a default share of RAM"
+    grep -qiE '^[[:space:]]*kernelCommandLine.*cgroup_no_v1' "$WSLCFG" \
+      || info ".wslconfig has no cgroup_no_v1 line (fine if WSL >= 2.5.1, which defaults to v2)"
   else
     soft "no .wslconfig found. Tier 1+ almost certainly needs one - see docs/wsl2-setup.md"
   fi

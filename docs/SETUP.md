@@ -89,16 +89,39 @@ While you are in Settings, also turn **off** *Resource Saver* (under
 Settings → Resources → Advanced). It pauses the engine when idle, which
 looks exactly like a dead cluster and will waste an hour of your life.
 
-## Step 3 — Give WSL2 enough memory
+## Step 3 — Configure WSL2: memory and cgroup v2
 
 **Do this before you create a cluster.** It requires `wsl --shutdown`,
 which would destroy a running cluster. Doing it now costs nothing.
 
-WSL2 does not hand Docker your physical RAM — it takes a default share,
-usually about half, and nothing warns you. On a 24GB machine that leaves
-Docker around 11GB, which is fine for tier 0 and not enough for tier 1.
+Two separate problems, one file, one restart.
 
-In **PowerShell**, replacing `<you>` with your Windows username:
+**Memory.** WSL2 does not hand Docker your physical RAM — it takes a
+default share, usually about half, and nothing warns you. On a 24GB
+machine that leaves Docker around 11GB: fine for tier 0, not enough for
+tier 1.
+
+**cgroup v2.** Kubernetes 1.36 will not run on cgroup v1, and WSL2 before
+v2.5.1 defaults to v1. This one does not fail quietly — `make up` dies at
+`Starting control-plane` after emitting several hundred lines of kubeadm
+retries ending in `context deadline exceeded`. The actual cause is a
+single deprecation warning at the very top, scrolled away long before you
+read the error.
+
+First, check your WSL version:
+
+```powershell
+wsl --version
+```
+
+If it is older than 2.5.1, update — that alone may be enough:
+
+```powershell
+wsl --update
+```
+
+Then, in **PowerShell**, replacing `<you>` with your **Windows** username
+(not your Linux one — they are usually different):
 
 ```powershell
 notepad C:\Users\<you>\.wslconfig
@@ -111,9 +134,13 @@ your machine:
 [wsl2]
 memory=16GB
 swap=8GB
+kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1
 autoMemoryReclaim=gradual
 sparseVhd=true
 ```
+
+The `kernelCommandLine` line is harmless on WSL ≥ 2.5.1, which is already
+on v2. Leave it in either way.
 
 Sizing guide — leave Windows at least 6–8GB:
 
@@ -134,6 +161,17 @@ wsl --shutdown
 ```
 
 Wait about ten seconds. Docker Desktop will restart itself.
+
+**Verify both took**, from inside WSL:
+
+```bash
+docker info --format 'cgroup v{{.CgroupVersion}}  mem {{.MemTotal}}'
+```
+
+You want `cgroup v2` and a memory figure matching what you set. If cgroup
+is still `v1`, quit Docker Desktop fully from the system tray and reopen
+it — a restart that does not fully stop the engine will not pick up the
+new kernel command line.
 
 ## Step 4 — Get into the right shell
 
@@ -250,6 +288,7 @@ Common red lines and their fixes:
 | Line | Fix |
 |---|---|
 | `docker CLI found but the daemon is not reachable` | Docker Desktop is not running, or step 2 was skipped |
+| `cgroup v1 - kind WILL fail at 'Starting control-plane'` | Step 3's `kernelCommandLine` line, then `wsl --shutdown` |
 | `Docker can use 11GB; tier 1 needs ~14GB` | Step 3, then `wsl --shutdown` |
 | `fs.inotify.max_user_instances is 128` | See [wsl2-setup.md](wsl2-setup.md) §2 |
 | `Docker storage has 12GB free` | `docker system prune -a`, or free disk |
@@ -405,6 +444,11 @@ share: `\\wsl$\Ubuntu\home\<you>\kubeflow-lab\.state\kubeconfig.host`
 
 [`troubleshooting.md`](troubleshooting.md) has the full list. The four
 that account for most of it:
+
+**`make up` dies at "Starting control-plane" with a wall of kubeadm
+retries and `context deadline exceeded`** — cgroup v1. Step 3. The
+hundreds of lines are a red herring; the real message is the deprecation
+warning on the first line.
 
 **"make: command not found"** — step 5, or you are in Git Bash. Check your
 prompt for `MINGW64`.

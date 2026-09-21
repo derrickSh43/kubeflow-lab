@@ -1,25 +1,47 @@
 # Copy to  C:\Users\<you>\.wslconfig  then run  wsl --shutdown  in PowerShell.
 #
-# WSL2 does NOT give Docker your physical RAM. It takes a default share and
-# the rest is invisible to the cluster. This file is the difference between
-# "tier 1 works" and "pods get OOMKilled forty minutes in for no reason".
+# Note the path: this is your WINDOWS username, which is usually not the
+# same as your Linux username inside the distro.
 #
-# Sizing (leave Windows at least 6-8GB):
-#   16GB physical -> memory=10GB   tier 0 only, realistically
+# Two settings here are load-bearing, and both fail in ways that do not
+# mention the setting.
+
+[wsl2]
+
+# --- memory ---------------------------------------------------------------
+# WSL2 does NOT give Docker your physical RAM. It takes a default share and
+# the rest is invisible to the cluster. Without this, pods get OOMKilled
+# forty minutes into an install for no apparent reason.
+#
+# Leave Windows at least 6-8GB:
+#   16GB physical -> memory=10GB   tier 0, realistically
 #   24GB physical -> memory=16GB   tier 0 and tier 1 comfortably
 #   32GB physical -> memory=24GB   tier 2 is fine
 #
 # Tier 2 on a 24GB machine is possible but tight - expect swapping.
-
-[wsl2]
 memory=16GB
-processors=6
 swap=8GB
 
-# Reclaim freed memory back to Windows instead of holding it forever.
-# Without this, WSL keeps the high-water mark until you restart it.
+# processors= is deliberately omitted. Left out, WSL gets all your cores.
+# Setting it to a small number is a downgrade you will forget you made.
+
+# --- cgroup v2 ------------------------------------------------------------
+# Kubernetes 1.36 does not run on cgroup v1, and WSL2 before v2.5.1
+# defaults to v1. Without this line, `kind create cluster` gets through
+# certificates and static pod manifests, then dies at "Starting
+# control-plane" with 60 seconds of retries and "context deadline
+# exceeded". The only hint is one deprecation warning at the very top of
+# several hundred lines of output.
+#
+# Harmless to leave in on WSL >= 2.5.1, which is already v2.
+# Check yours with:  wsl --version
+kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1
+
+# --- housekeeping ---------------------------------------------------------
+# Reclaim freed memory back to Windows instead of holding the high-water
+# mark until you restart WSL.
 autoMemoryReclaim=gradual
 
-# Sparse VHD keeps the disk image from growing monotonically as you
-# create and destroy clusters. You will destroy a lot of clusters.
+# Keep the virtual disk from growing monotonically as you create and
+# destroy clusters. You will destroy a lot of clusters.
 sparseVhd=true
