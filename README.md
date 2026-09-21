@@ -15,6 +15,12 @@ you share this with get byte-identical tooling.
 
 ## Quickstart
 
+**First time? Follow [`docs/SETUP.md`](docs/SETUP.md).** It is a complete
+step-by-step from nothing, and it covers the Windows/WSL2 traps that fail
+silently and cost people an afternoon.
+
+If you already have a working Docker + WSL2 (or macOS/Linux) setup:
+
 ```bash
 git clone <your-remote> kubeflow-lab
 cd kubeflow-lab
@@ -24,9 +30,6 @@ make up TIER=0        # ~10 min on a warm cache
 ```
 
 Then open <http://localhost:8080>.
-
-> **Windows users: read [`docs/wsl2-setup.md`](docs/wsl2-setup.md) first.**
-> Two settings there fail silently and will cost you an afternoon.
 
 ```bash
 make status           # what is running, and what is stuck
@@ -113,7 +116,7 @@ tools/                the pinned toolbox image
 scripts/              doctor, up, down, status, forward, lint
 manifests/            tier overlays and patches
 labs/                 the actual curriculum
-docs/                 wsl2-setup, architecture, troubleshooting
+docs/                 SETUP, wsl2-setup, architecture, troubleshooting
 ```
 
 ## Credentials
