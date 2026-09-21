@@ -16,7 +16,7 @@ ARG KFP_SDK_VERSION=latest
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git jq gettext-base bash make \
+      ca-certificates curl git jq gettext-base bash make bash-completion \
       python3 python3-pip python3-venv \
       docker.io \
  && rm -rf /var/lib/apt/lists/*
@@ -83,6 +83,29 @@ RUN set -eux; \
       pip install --no-cache-dir "kfp==${KFP_SDK_VERSION}" kfp-kubernetes; \
     fi; \
     python -c "import kfp; print('kfp', kfp.__version__)"
+
+# --- shell ergonomics ------------------------------------------------------
+# Completion is not a luxury here. Half of every lab is typing resource
+# names like `ml-pipeline-ui` and `mlpipeline-minio-artifact` by hand, and a
+# typo does not error - `kubectl get svc ml-pipeleine-ui` returns "No
+# resources found", which reads exactly like a real empty result. Tab
+# completion removes that whole class of wrong turn.
+RUN printf '%s\n' \
+    'source /usr/share/bash-completion/bash_completion 2>/dev/null || true' \
+    'source <(kubectl completion bash)' \
+    'source <(kind completion bash)' \
+    'source <(helm completion bash)' \
+    "alias k='kubectl'" \
+    'complete -o default -F __start_kubectl k' \
+    "alias kk='kubectl -n kubeflow'" \
+    "PS1='\[\033[1;34m\]toolbox\[\033[0m\]:\w# '" \
+    >> /root/.bashrc
+
+# Marks this as the inside of the toolbox. scripts/lib.sh refuses to run
+# here, because `make` inside the toolbox spawns a nested container with
+# host-resolved volume paths and fails in a way that looks like a dead
+# cluster. See the guard at the top of lib.sh.
+ENV IN_TOOLBOX=1
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

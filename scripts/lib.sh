@@ -3,6 +3,30 @@
 
 set -euo pipefail
 
+# --- you are in the wrong shell -------------------------------------------
+# These scripts drive the toolbox from OUTSIDE it. Running `make` from
+# inside the toolbox spawns a nested container and passes it `-v /work:/work`
+# - but volume paths are resolved by the Docker daemon on the HOST, where
+# /work does not exist. Docker silently creates an empty directory, /state
+# mounts empty, kubectl finds no kubeconfig and falls back to its built-in
+# default of localhost:8080. You then get:
+#
+#   The connection to the server localhost:8080 was refused
+#
+# which reads like a dead cluster and is nothing of the sort. Fail early
+# with something true instead.
+if [[ -f /.dockerenv || -n "${IN_TOOLBOX:-}" ]]; then
+  cat >&2 <<'MSG'
+
+  You are inside the toolbox container.
+
+  `make` runs on your host shell; kubectl/kustomize/kfp run in here.
+  Type `exit` first, then run your make target.
+
+MSG
+  exit 1
+fi
+
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 STATE_DIR="$ROOT/.state"
 mkdir -p "$STATE_DIR"

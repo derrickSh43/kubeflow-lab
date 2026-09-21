@@ -5,6 +5,8 @@
 #   make status          what is running, what is stuck
 #   make forward         port-forward the UI
 #   make sh              shell into the pinned toolbox container
+#   make pause           stop for the day, keeping all cluster state
+#   make resume          pick up exactly where you left off
 #   make down            destroy the cluster (keeps images cached)
 #   make nuke            destroy the cluster AND the image cache
 #
@@ -45,8 +47,16 @@ sh: tools ## Interactive shell inside the toolbox (kubectl, kustomize, kind, k9s
 up: ## Create the cluster and install Kubeflow at $(TIER)
 	@bash scripts/up.sh
 
+.PHONY: pause
+pause: ## Stop the cluster, keeping ALL state - resumes in under a minute
+	@bash scripts/pause.sh stop
+
+.PHONY: resume
+resume: ## Start a paused cluster back up
+	@bash scripts/pause.sh start
+
 .PHONY: down
-down: ## Delete the kind cluster
+down: ## Delete the kind cluster (cluster state is lost; images are kept)
 	@bash scripts/down.sh
 
 .PHONY: nuke

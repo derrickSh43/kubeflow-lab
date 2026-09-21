@@ -32,6 +32,24 @@ to `.wslconfig`, `wsl --shutdown`, and confirm with
 
 `make doctor` checks this now and blocks on v1.
 
+## "The connection to the server localhost:8080 was refused"
+
+You are running `make` inside the toolbox container. Type `exit` and run it
+from your host shell.
+
+That message is kubectl's behaviour when it finds **no kubeconfig at all** -
+it falls back to a compiled-in default of `localhost:8080`. It is almost
+never a dead cluster.
+
+Why it happens: `make` inside the toolbox spawns a nested toolbox container
+and passes `-v /work:/work -v /work/.state:/state`. Volume paths are
+resolved by the Docker daemon on the *host*, where `/work` does not exist,
+so Docker creates empty directories and mounts those. No kubeconfig, hence
+the fallback.
+
+`scripts/lib.sh` now refuses to run inside the toolbox and says so. If you
+still see the raw error, rebuild the image: `exit`, then `make tools`.
+
 ## Warnings that are fine
 
 `make status` shows warnings during and shortly after an install. These
@@ -145,8 +163,9 @@ ready.
 Expected at tier 1+. Things that help, in order:
 
 1. Raise `memory=` in `.wslconfig` and `wsl --shutdown`.
-2. `make down` between sessions - `make up` reuses the image cache and is
-   much faster the second time.
+2. `make pause` between sessions - frees the memory back to Windows and
+   keeps your cluster state. `make down` also frees it but destroys the
+   cluster.
 3. Work at tier 0 unless the lab needs more. Tier 0 boots in minutes.
 4. Move the repo off `/mnt/d` into the WSL filesystem.
 

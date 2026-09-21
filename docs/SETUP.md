@@ -414,6 +414,62 @@ make freeze          # pin tool versions into VERSIONS.lock before sharing
 `make up` is **idempotent**. Re-running it after a failure is the normal
 recovery path, not a last resort.
 
+Two rules worth internalising:
+
+- **`make` runs in your host shell, never inside the toolbox.** The toolbox
+  is where `kubectl`, `kustomize` and `kfp` live; the Makefile is what
+  drives the toolbox. Run `make` in there and it spawns a nested container
+  whose volume paths are resolved on the host, `/state` mounts empty, and
+  kubectl fails over to `localhost:8080` — which looks exactly like a dead
+  cluster and isn't. `make sh` puts you in; `exit` gets you out.
+- **`docker ps` is your ground truth.** The cluster nodes are containers.
+  If something is confusing, look at them.
+
+### Stopping for the day, and coming back
+
+You have two ways to stop, and they are not the same.
+
+```bash
+make pause     # stop the containers, keep everything
+make resume    # back in under a minute, exactly as you left it
+```
+
+```bash
+make down      # delete the cluster
+make up TIER=0 # 3-5 minutes, fresh cluster
+```
+
+What survives each:
+
+| | `make pause` | `make down` | `make nuke` |
+|---|---|---|---|
+| Your `ANSWERS.md`, repo edits | yes | yes | yes |
+| Docker image cache (~25GB) | yes | yes | **no** |
+| Toolbox image | yes | yes | **no** |
+| Pipeline runs, Workflows, MySQL, artifacts | **yes** | no | no |
+| Time to get back | <1 min | 3–5 min | 15 min |
+
+**Use `make pause` between sessions.** It frees the memory back to Windows
+and keeps your cluster state, which matters more than it sounds: several
+labs build on work you did earlier in the same cluster. Lab 02's caching
+question is the clearest case — the KFP cache lives in MySQL inside the
+cluster, so a `make down` between submitting a pipeline and re-running it
+erases the very thing the question asks about.
+
+Use `make down` when you want a clean slate, when a resume comes back
+unhealthy, or when you are moving between tiers.
+
+A resume can fail if the cluster sat for several days — certificates and
+leases have timing assumptions a long pause breaks. `make resume` tells you
+if that happened. It is not worth debugging in a lab; `make down && make up`
+and carry on. Your notes are files on disk and are never at risk.
+
+### Starting a new lab later
+
+Labs are independent unless a lab says otherwise. You can finish lab 01,
+`make pause`, come back a week later, `make resume`, and go straight into
+lab 02. Nothing carries between them except what you learned.
+
 ### Moving up a tier
 
 ```bash

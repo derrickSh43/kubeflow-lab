@@ -35,8 +35,15 @@ Then open <http://localhost:8080>.
 make status           # what is running, and what is stuck
 make sh               # toolbox shell: kubectl, kustomize, kind, helm, k9s, kfp
 make labs             # list the labs
-make down             # tear down, keep the image cache
+make pause            # stop for the day, keeping all cluster state
+make resume           # back in under a minute
+make down             # delete the cluster, keep the image cache
 ```
+
+`make` runs in your host shell, not inside the toolbox. `make pause` is the
+one to use between sessions — `make down` destroys pipeline runs, the
+database and artifacts, which several labs build on. See
+[Stopping for the day](docs/SETUP.md#stopping-for-the-day-and-coming-back).
 
 ## Tiers
 
@@ -113,7 +120,7 @@ VERSIONS              every pin, one file
 Makefile              the whole interface
 kind/                 cluster topology
 tools/                the pinned toolbox image
-scripts/              doctor, up, down, status, forward, lint
+scripts/              doctor, up, pause, down, status, forward, lint
 manifests/            tier overlays and patches
 labs/                 the actual curriculum
 docs/                 SETUP, wsl2-setup, architecture, troubleshooting

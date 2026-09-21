@@ -44,11 +44,52 @@ Questions to answer in `ANSWERS.md`:
 3. Delete nothing, but answer: if the EndpointSlice were empty, what would
    `curl localhost:8080` return, and why is that different from the pod
    being gone?
-4. Which node is the pod on? If it is a worker and the NodePort is mapped
-   on the control-plane, how does the traffic still arrive?
+4. Which node is the pod on? Tier 0 has exactly one node, so the answer is
+   "the control-plane" and that looks like the end of it. It isn't. The
+   real question is **why a NodePort works at all**, and you can watch the
+   machinery on a single node.
 
-Question 4 is the one worth the time. The answer is kube-proxy, and
-understanding it is most of Kubernetes networking.
+   Find out who is responsible, and how it is doing the job:
+
+   ```bash
+   kubectl -n kube-system get ds kube-proxy -o wide
+   kubectl -n kube-system get cm kube-proxy -o yaml | grep -i 'mode:'
+   ```
+
+   Then read the rules it actually wrote. From the toolbox, which has the
+   Docker socket:
+
+   ```bash
+   # if mode is iptables (or blank, which means iptables)
+   docker exec kubeflow-lab-control-plane iptables-save -t nat | grep 30080
+
+   # if mode is nftables
+   docker exec kubeflow-lab-control-plane nft list ruleset | grep -B2 -A6 30080
+   ```
+
+   Answer: what does that rule do to a packet arriving on port 30080, and
+   what address does it rewrite the destination to? Compare that address
+   to the EndpointSlice output from earlier. They should match, and if you
+   see why they must match, you have the whole idea.
+
+   Then one more, which decides the answer above:
+
+   ```bash
+   kubectl -n kubeflow get svc ml-pipeline-ui -o jsonpath='{.spec.externalTrafficPolicy}'
+   ```
+
+Question 4 is the one worth the time. kube-proxy runs as a DaemonSet on
+**every** node and writes those rules on every node — which is why a
+NodePort answers on nodes that run none of the pods. When the pod is
+elsewhere, the packet takes a second hop across the pod network, and gets
+SNAT'd so the reply comes back the same way. That SNAT is why the pod sees
+a node IP as the client rather than the real caller, and why
+`externalTrafficPolicy: Local` exists.
+
+You cannot observe that second hop at tier 0 — one node, nothing to hop
+to. Reason it through now from the rules in front of you, then come back
+and confirm it at tier 1, where there are three nodes and you can cordon
+one mid-request.
 
 ### Tier 1 path (7+ hops)
 
