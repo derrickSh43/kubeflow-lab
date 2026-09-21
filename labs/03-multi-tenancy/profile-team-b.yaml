@@ -1,0 +1,26 @@
+# A second tenant.
+#
+# This is the entire tenant definition. Everything else - namespace, RBAC,
+# quota, service accounts, Istio AuthorizationPolicy, MinIO credentials -
+# is created by the Profile controller reconciling this object.
+#
+# That is the lesson: one CR in, a dozen objects out, and a controller that
+# keeps them that way. Delete a RoleBinding it made and watch it come back.
+apiVersion: kubeflow.org/v1
+kind: Profile
+metadata:
+  name: team-b
+spec:
+  owner:
+    kind: User
+    name: team-b@example.com
+
+  # Quota is part of the tenant definition, not an afterthought bolted on
+  # later. Lab 04 tightens these until pipelines start going Pending.
+  resourceQuotaSpec:
+    hard:
+      cpu: "4"
+      memory: 8Gi
+      requests.nvidia.com/gpu: "0"
+      persistentvolumeclaims: "5"
+      requests.storage: 10Gi

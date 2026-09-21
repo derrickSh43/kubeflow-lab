@@ -1,0 +1,12 @@
+# Tier 0: single node. Pipelines-only, no mesh, no auth.
+# Deliberately boring - this is the "does Docker work at all" cluster.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kubeflow-lab
+nodes:
+  - role: control-plane
+    # Lets you reach a NodePort service on localhost:8080 without port-forward.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP

@@ -1,0 +1,25 @@
+# Copy to  C:\Users\<you>\.wslconfig  then run  wsl --shutdown  in PowerShell.
+#
+# WSL2 does NOT give Docker your physical RAM. It takes a default share and
+# the rest is invisible to the cluster. This file is the difference between
+# "tier 1 works" and "pods get OOMKilled forty minutes in for no reason".
+#
+# Sizing (leave Windows at least 6-8GB):
+#   16GB physical -> memory=10GB   tier 0 only, realistically
+#   24GB physical -> memory=16GB   tier 0 and tier 1 comfortably
+#   32GB physical -> memory=24GB   tier 2 is fine
+#
+# Tier 2 on a 24GB machine is possible but tight - expect swapping.
+
+[wsl2]
+memory=16GB
+processors=6
+swap=8GB
+
+# Reclaim freed memory back to Windows instead of holding it forever.
+# Without this, WSL keeps the high-water mark until you restart it.
+autoMemoryReclaim=gradual
+
+# Sparse VHD keeps the disk image from growing monotonically as you
+# create and destroy clusters. You will destroy a lot of clusters.
+sparseVhd=true

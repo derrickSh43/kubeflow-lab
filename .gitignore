@@ -1,0 +1,26 @@
+# Runtime state - never commit
+.state/
+kubeconfig
+*.kubeconfig
+upstream/
+.env
+
+# Toolbox build cache
+.tools-built
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python (labs)
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Compiled pipeline specs
+*.pipeline.yaml
+labs/**/out/

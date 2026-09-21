@@ -1,0 +1,25 @@
+# Tier 0 reference overlay.
+#
+# scripts/up.sh applies the upstream refs directly so the version pin lives
+# in exactly one place (VERSIONS). This file is here so you can see the
+# shape of it, and so you have somewhere to add your own patches.
+#
+# Try it yourself:  make sh  then  kustomize build manifests/tier0-pipelines
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=2.17.0
+
+patches:
+  # Put the UI on a NodePort that kind maps to host 8080.
+  - target:
+      kind: Service
+      name: ml-pipeline-ui
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30080

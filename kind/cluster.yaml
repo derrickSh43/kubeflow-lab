@@ -1,0 +1,35 @@
+# Tier 1 / Tier 2: three nodes.
+#
+# Why not one node? Because a single-node cluster hides every scheduling
+# lesson worth learning. With workers you can watch the scheduler place
+# pods, apply nodeSelectors, cordon a node mid-pipeline, and see what
+# Kubeflow does about it. That is the point of this lab.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kubeflow-lab
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      # Let control-plane take workload too - on a laptop we need the capacity.
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          taints: []
+    extraPortMappings:
+      # istio-ingressgateway is patched to NodePort 30080 by scripts/up.sh,
+      # so the Central Dashboard lands on http://localhost:8080.
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30443
+        hostPort: 8443
+        protocol: TCP
+
+  - role: worker
+    labels:
+      # Lab 04 uses these to pin pipeline steps to a specific node.
+      lab.kubeflow/pool: general
+
+  - role: worker
+    labels:
+      lab.kubeflow/pool: general
