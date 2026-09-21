@@ -13,13 +13,16 @@
 # the rest is invisible to the cluster. Without this, pods get OOMKilled
 # forty minutes into an install for no apparent reason.
 #
-# Leave Windows at least 6-8GB:
-#   16GB physical -> memory=10GB   tier 0, realistically
-#   24GB physical -> memory=16GB   tier 0 and tier 1 comfortably
-#   32GB physical -> memory=24GB   tier 2 is fine
+# WSL also grows into whatever you allow it and is slow to hand it back, so
+# size for the tier you are ACTUALLY running, not the one you might run
+# later. Raise it when you move up. Leave Windows at least 6-8GB.
+#
+#   tier 0 only                     memory=10GB
+#   tier 0 and 1, 24GB physical     memory=16GB
+#   tier 2, 32GB physical           memory=24GB
 #
 # Tier 2 on a 24GB machine is possible but tight - expect swapping.
-memory=16GB
+memory=10GB
 swap=8GB
 
 # processors= is deliberately omitted. Left out, WSL gets all your cores.
@@ -37,10 +40,25 @@ swap=8GB
 # Check yours with:  wsl --version
 kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1
 
-# --- housekeeping ---------------------------------------------------------
-# Reclaim freed memory back to Windows instead of holding the high-water
-# mark until you restart WSL.
-autoMemoryReclaim=gradual
+# ---------------------------------------------------------------------------
+# NOTE THE SECTION HEADER. autoMemoryReclaim and sparseVhd live under
+# [experimental], NOT [wsl2]. Put them in the wrong section and they are
+# silently ignored - which looks exactly like "WSL is hoarding my RAM and
+# nothing helps".
+# ---------------------------------------------------------------------------
+[experimental]
+
+# Return cached memory to Windows.
+#
+#   dropCache  reclaim immediately  <- what you want, and the WSL default
+#   gradual    reclaim slowly, when the CPU is idle
+#   disabled   never
+#
+# Do not use `gradual` here. It is slow enough that you will conclude it is
+# broken, and it has a known interaction with Docker Desktop's Resource
+# Saver that can wedge WSL entirely (microsoft/WSL#11066). Turn Resource
+# Saver off as well - see docs/wsl2-setup.md.
+autoMemoryReclaim=dropCache
 
 # Keep the virtual disk from growing monotonically as you create and
 # destroy clusters. You will destroy a lot of clusters.

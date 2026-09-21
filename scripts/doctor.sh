@@ -105,6 +105,27 @@ if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
       || soft ".wslconfig has no [wsl2] memory= line - WSL takes a default share of RAM"
     grep -qiE '^[[:space:]]*kernelCommandLine.*cgroup_no_v1' "$WSLCFG" \
       || info ".wslconfig has no cgroup_no_v1 line (fine if WSL >= 2.5.1, which defaults to v2)"
+
+    # autoMemoryReclaim and sparseVhd belong under [experimental]. Under
+    # [wsl2] they parse fine and do nothing, which presents as "WSL hoards
+    # my RAM and no setting helps". Worth naming explicitly.
+    if grep -qiE '^[[:space:]]*autoMemoryReclaim' "$WSLCFG"; then
+      amr_section=$(awk '
+        /^[[:space:]]*\[/ { s=tolower($0); gsub(/[\[\] \t\r]/,"",s) }
+        tolower($0) ~ /^[[:space:]]*automemoryreclaim/ { print s; exit }
+      ' "$WSLCFG")
+      amr_value=$(grep -iE '^[[:space:]]*autoMemoryReclaim' "$WSLCFG" \
+                  | head -1 | cut -d= -f2 | tr -d ' \r')
+      if [[ "$amr_section" != "experimental" ]]; then
+        soft "autoMemoryReclaim is under [$amr_section] - ignored there. Move it to [experimental]"
+      elif [[ "${amr_value,,}" == "gradual" ]]; then
+        soft "autoMemoryReclaim=gradual reclaims very slowly; dropCache is what you want"
+      else
+        ok "autoMemoryReclaim=$amr_value under [experimental]"
+      fi
+    else
+      info "no autoMemoryReclaim set - WSL defaults to dropCache, which is fine"
+    fi
   else
     soft "no .wslconfig found. Tier 1+ almost certainly needs one - see docs/wsl2-setup.md"
   fi

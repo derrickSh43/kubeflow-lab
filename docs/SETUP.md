@@ -132,23 +132,33 @@ your machine:
 
 ```ini
 [wsl2]
-memory=16GB
+memory=10GB
 swap=8GB
 kernelCommandLine = cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1
-autoMemoryReclaim=gradual
+
+[experimental]
+autoMemoryReclaim=dropCache
 sparseVhd=true
 ```
+
+Three things about that file, each of which silently does nothing if you
+get it wrong:
+
+- **`[experimental]` is not a typo.** `autoMemoryReclaim` and `sparseVhd`
+  only work in that section. Under `[wsl2]` they are ignored, and you get
+  a WSL that never gives memory back with no clue why.
+- **`dropCache`, not `gradual`.** `gradual` reclaims slowly enough that you
+  will assume it is broken, and it can wedge WSL when Docker Desktop's
+  Resource Saver is on.
+- **Size `memory=` for the tier you are running now.** WSL grows into
+  whatever you allow and is slow to hand it back. `10GB` is right for tier
+  0; raise it to `16GB` when you move to tier 1.
 
 The `kernelCommandLine` line is harmless on WSL ≥ 2.5.1, which is already
 on v2. Leave it in either way.
 
-Sizing guide — leave Windows at least 6–8GB:
-
-| Physical RAM | `memory=` | Tiers you can run |
-|---|---|---|
-| 16GB | `10GB` | tier 0 |
-| 24GB | `16GB` | tier 0, tier 1 |
-| 32GB+ | `24GB` | all three |
+Leave Windows at least 6–8GB: `10GB` on a 16GB machine, `16GB` on 24GB,
+`24GB` on 32GB or more — and only as high as the tier you actually run.
 
 Deliberately **omit `processors=`** unless you want to limit CPU. Left
 out, WSL gets all your cores. Setting it to a small number is a downgrade
@@ -449,12 +459,37 @@ What survives each:
 | Pipeline runs, Workflows, MySQL, artifacts | **yes** | no | no |
 | Time to get back | <1 min | 3–5 min | 15 min |
 
-**Use `make pause` between sessions.** It frees the memory back to Windows
-and keeps your cluster state, which matters more than it sounds: several
-labs build on work you did earlier in the same cluster. Lab 02's caching
-question is the clearest case — the KFP cache lives in MySQL inside the
-cluster, so a `make down` between submitting a pipeline and re-running it
-erases the very thing the question asks about.
+**Use `make pause` between sessions.** It keeps your cluster state, which
+matters more than it sounds: several labs build on work you did earlier in
+the same cluster. Lab 02's caching question is the clearest case — the KFP
+cache lives in MySQL inside the cluster, so a `make down` between
+submitting a pipeline and re-running it erases the very thing the question
+asks about.
+
+**On Windows, pausing does not give memory back to Windows.** Stopping the
+containers ends the processes, but the WSL2 VM keeps the memory it has
+already claimed. The full stop-for-the-day sequence is two steps in two
+different shells:
+
+```bash
+make pause                 # in WSL
+```
+```powershell
+wsl --shutdown             # in PowerShell, not from inside WSL
+```
+
+Stopped containers survive the shutdown — they live in Docker's virtual
+disk. Start Docker Desktop again later and `make resume` picks up exactly
+where you left off.
+
+For a quicker partial reclaim without shutting WSL down:
+
+```bash
+sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
+```
+
+If memory never comes back on its own, check `autoMemoryReclaim` is under
+`[experimental]` and set to `dropCache`. `make doctor` checks this.
 
 Use `make down` when you want a clean slate, when a resume comes back
 unhealthy, or when you are moving between tiers.

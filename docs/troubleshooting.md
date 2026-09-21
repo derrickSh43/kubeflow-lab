@@ -158,14 +158,46 @@ Give it ten minutes after `make up` says it is done. The message is
 accurate about the manifests having converged, not about every pod being
 ready.
 
+## WSL is holding all my RAM and nothing frees it
+
+Stopping containers, `make pause`, even `make down` — none of them return
+memory to Windows by themselves. They free memory *inside* the WSL2 VM;
+the VM keeps what it claimed.
+
+Check the two things that are usually wrong:
+
+```bash
+grep -A3 experimental /mnt/c/Users/<you>/.wslconfig
+```
+
+`autoMemoryReclaim` must be under **`[experimental]`** (under `[wsl2]` it
+is silently ignored) and set to **`dropCache`** (`gradual` is far too
+slow). `make doctor` checks both.
+
+To get memory back right now:
+
+```bash
+sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'     # partial, instant
+```
+
+```powershell
+wsl --shutdown                                      # all of it, from PowerShell
+```
+
+Stopped containers survive `wsl --shutdown`, so `make pause` then
+`wsl --shutdown` is the real stop-for-the-day on Windows.
+
+Also: WSL grows into whatever `memory=` allows. If you are only running
+tier 0, `memory=10GB` rather than `16GB` costs you nothing.
+
 ## It is slow and my laptop is unusable
 
 Expected at tier 1+. Things that help, in order:
 
 1. Raise `memory=` in `.wslconfig` and `wsl --shutdown`.
-2. `make pause` between sessions - frees the memory back to Windows and
-   keeps your cluster state. `make down` also frees it but destroys the
-   cluster.
+2. `make pause` between sessions, then `wsl --shutdown` from PowerShell.
+   Pausing alone keeps your cluster state but does not hand memory back
+   to Windows - see the section above.
 3. Work at tier 0 unless the lab needs more. Tier 0 boots in minutes.
 4. Move the repo off `/mnt/d` into the WSL filesystem.
 

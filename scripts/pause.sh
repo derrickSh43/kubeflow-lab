@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Stop and start the cluster without destroying it.
 #
-# kind "nodes" are Docker containers, so stopping them frees the RAM while
-# leaving every disk-backed thing alone: pipeline runs, Workflows, the MySQL
-# database, artifacts in the object store. Resuming takes under a minute,
+# kind "nodes" are Docker containers. Stopping them ends every process
+# inside while leaving all the disk-backed state alone: pipeline runs,
+# Workflows, the MySQL database, artifacts. Resuming takes under a minute,
 # against 3-5 minutes for `make down && make up` - which also wipes all of
 # the above.
+#
+# What this does NOT do, on Windows, is hand memory back to Windows.
+# Stopping containers frees memory inside the WSL2 VM, but the VM keeps
+# what it has already claimed. Only WSL returns it, and only if
+# autoMemoryReclaim is configured - see the note printed after a pause.
 #
 # Use pause/resume between sessions. Use down/up when you want a clean slate
 # or when a resume comes back unhealthy.
@@ -32,11 +37,32 @@ case "${1:-stop}" in
     cat <<TXT
 
   Cluster state is intact on disk - runs, database, artifacts, all of it.
-  Docker is no longer holding its memory.
-
   Come back with:  make resume
 
 TXT
+
+    # On Windows, stopping containers does not return memory to Windows.
+    # Say so, rather than letting people watch Task Manager and conclude
+    # the pause did nothing.
+    if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+      cat <<'TXT'
+  On WSL2, the processes are gone but the VM keeps the memory it claimed.
+  To actually give it back to Windows:
+
+    1. drop the page cache here (instant, safe):
+         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
+
+    2. or, for all of it, from PowerShell - NOT from inside WSL:
+         wsl --shutdown
+       Stopped containers survive this. Start Docker Desktop again later
+       and `make resume` picks up exactly where you left off.
+
+  If memory never comes back on its own, autoMemoryReclaim is probably in
+  the wrong section of .wslconfig. It belongs under [experimental], not
+  [wsl2], and should be dropCache - see docs/wsl2-setup.md.
+
+TXT
+    fi
     ;;
 
   start)
